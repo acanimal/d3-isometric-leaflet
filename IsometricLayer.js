@@ -4,8 +4,8 @@ L.IsometricLayer = L.Class.extend({
   includes: [L.Mixin.Events],
 
   options: {
-    radius : 10,
-    opacity: 0.5
+    size: 10,
+    maxHeight: 100
   },
 
   initialize: function (data, options) {
@@ -17,12 +17,16 @@ L.IsometricLayer = L.Class.extend({
 	onAdd: function (map) {
 		this._map = map;
 
+    this._computeDataBounds();
     // Create a container for svg.
     this._initContainer();
     this._offset = L.point([0,0]);
 
     // Set up events
-    map.on({'moveend': this._redraw}, this);
+    map.on({'moveend': function() {
+      this._initContainer();
+      this._redraw();
+    }}, this);
     map.on({'zoomend': function() {
       this._initContainer();
       this._redraw();
@@ -47,58 +51,68 @@ L.IsometricLayer = L.Class.extend({
     this._map = null;
 	},
 
+  _computeDataBounds: function() {
+    this._leftBottom = L.latLng(
+      d3.min(data, function(d) { return d.lat; }),
+      d3.min(data, function(d) { return d.lon; })
+    );
+    this._rightTop = L.latLng(
+      d3.max(data, function(d) { return d.lat; }),
+      d3.max(data, function(d) { return d.lon; })
+    );
+
+    this._dataRange = [
+      d3.min(data, function(d) { return d.value; }),
+      d3.max(data, function(d) { return d.value; }),
+    ];
+
+    this._valueScale = d3.scale.linear().domain([0, this._dataRange[1]]).range([0, this.options.maxHeight]);
+  },
+
   _initContainer: function() {
-    // TODO - Compute size of the root container
-    var width = 600;
-    var height = 600;
+
+    var lb = this._map.latLngToContainerPoint(this._leftBottom);
+    var rt = this._map.latLngToContainerPoint(this._rightTop);
+    // rt.y -= this.options.maxHeight;
+
+    console.log(lb, rt);
 
     if (this._container) {
       document.querySelector('svg.isometric-layer').remove();
     }
 
-    var width = this._map.getSize().x;
-    var height = this._map.getSize().y;
+    var width = (rt.x - lb.x) + this.options.size * 2;
+    var height = (lb.y - rt.y) + this.options.maxHeight + this.options.size * 2;
+
+    var left = lb.x - this.options.size;
+    var top = rt.y - this.options.maxHeight;
 
     this._container = d3.select(this._map.getPanes().overlayPane)
       .append('svg')
       .attr({
         'class': 'leaflet-layer leaflet-zoom-hide isometric-layer',
         'width': width,
-        'height': height*2,
-        'viewBox': '0 '+ (-height/2) + ' ' + width + ' ' + height*2
+        'height': height,
+        'viewBox': left +' '+ top + ' ' + width + ' ' + height
       })
       .style({
-        'top': -height/2+"px",
-        'bottom': -height/2+"px"
+        'top': top + "px",
+        'left': left + "px",
+        // 'bottom': 2+"px"
+        // 'top': -height/2+"px",
+        // 'bottom': -height/2+"px"
       });
-  },
 
-  _initData: function() {
-    var LEN = 25;
-    var PAD = 10;
 
-    // Compute data bounds
-    if (!this._dataBounds) {
-      this._dataBounds = L.latLngBounds(
-        L.latLng(
-          d3.min(data, function(d) { return d.lat; }),
-          d3.min(data, function(d) { return d.lon; })
-        ),
-        L.latLng(
-          d3.max(data, function(d) { return d.lat; }),
-          d3.max(data, function(d) { return d.lon; })
-        )
-      );
-    }
 
     this._data = data.map(function(d) {
       var pointLayer = this._map.latLngToLayerPoint([d.lat, d.lon]);
       return {
         origX: pointLayer.x,
         origY: pointLayer.y,
-        dx: LEN - PAD,
-        dy: LEN - PAD,
-        dz: d.value//10 + Math.random() * 6 * LEN
+        dx: this.options.size,
+        dy: this.options.size,
+        dz: this._valueScale(d.value)
       };
     }, this);
 
@@ -112,7 +126,7 @@ L.IsometricLayer = L.Class.extend({
   },
 
   _redraw: function() {
-    this._initData();
+
     this._DRAW();
   },
 
@@ -147,9 +161,6 @@ L.IsometricLayer = L.Class.extend({
     d.x = 0;
     d.y = 0;
     d.z = 0;
-    // d.dx = 10;
-    // d.dy = 10;
-    // d.dz = 10;
 
     var fb = this._isometric([d.x, d.y, d.z]);
     var mlb = this._isometric([d.x + d.dx, d.y, d.z]);
@@ -174,7 +185,7 @@ L.IsometricLayer = L.Class.extend({
 
   _DRAW: function() {
     var svg = this._container;
-    var y_color = d3.scale.category20();
+    var y_color = d3.scale.category10();
 
     var pipedons = svg.selectAll('.pipedon').data(this._data);
     var enter_pipedons = pipedons.enter()
