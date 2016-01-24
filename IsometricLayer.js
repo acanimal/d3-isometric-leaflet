@@ -64,9 +64,9 @@ L.IsometricLayer = L.Class.extend({
 
   _getPos: function () {
 		var left, top, matches,
-		    el = this._map._mapPane,
-		    style = window.getComputedStyle(el),
-        transformRe = /([-+]?(?:\d*\.)?\d+)\D*, ([-+]?(?:\d*\.)?\d+)\D*\)/;
+	    el = this._map._mapPane,
+	    style = window.getComputedStyle(el),
+      transformRe = /([-+]?(?:\d*\.)?\d+)\D*, ([-+]?(?:\d*\.)?\d+)\D*\)/;
 
 		if (L.Browser.any3d) {
 			matches = style[L.DomUtil.TRANSFORM].match(transformRe);
@@ -92,8 +92,8 @@ L.IsometricLayer = L.Class.extend({
     var height = mapSize.y;
 
     var pos = this._getPos();
-    var left = pos.x;
-    var top = pos.y;
+    this._offsetx = pos.x;
+    this._offsety = pos.y;
 
 
     this._container
@@ -101,10 +101,10 @@ L.IsometricLayer = L.Class.extend({
         'class': 'leaflet-layer leaflet-zoom-hide isometric-layer',
         'width': width,
         'height': height,
-        // 'viewBox': left +' '+ top + ' ' + width + ' ' + height,
+        'viewBox': -this._offsetx +' '+ -this._offsety + ' ' + width + ' ' + height,
       })
       .style({
-        transform: "translate(" + -left + "px," + -top + "px)"
+        transform: "translate(" + -this._offsetx + "px," + -this._offsety + "px)"
       });
 
 
@@ -120,8 +120,13 @@ L.IsometricLayer = L.Class.extend({
   _redraw: function() {
 
     this._data = data.map(function(d) {
-      var pointLayer = this._map.latLngToLayerPoint([d.lat, d.lon]);
-      console.log("-> ", pointLayer)
+      var pointLayer = this._map.latLngToContainerPoint([d.lat, d.lon]);
+      console.log("-> container ", this._map.latLngToContainerPoint([d.lat, d.lon]), "layer ",this._map.latLngToLayerPoint([d.lat, d.lon]))
+
+      // pointLayer.add(L.point([this._offsetx, this._offsety]))
+      console.log("--> offset", L.point([this._offsetx, this._offsety]))
+      // console.log("-> total ", pointLayer.add(L.point([this._offsetx, this._offsety])))
+
       return {
         origX: pointLayer.x,
         origY: pointLayer.y,
@@ -137,7 +142,7 @@ L.IsometricLayer = L.Class.extend({
 
 
 
-
+    console.log("draw")
     this._DRAW();
   },
 
