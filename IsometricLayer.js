@@ -61,34 +61,47 @@ L.IsometricLayer = L.Class.extend({
       d3.max(data, function(d) { return d.lon; })
     );
 
-    this._dataRange = [
+    var dataRange = [
       d3.min(data, function(d) { return d.value; }),
       d3.max(data, function(d) { return d.value; }),
     ];
 
-    this._valueScale = d3.scale.linear().domain([0, this._dataRange[1]]).range([0, this.options.maxHeight]);
+    this._valueScale = d3.scale.linear().domain([0, dataRange[1]]).range([0, this.options.maxHeight]);
   },
 
   _initContainer: function() {
 
-    var lb = this._map.latLngToContainerPoint(this._leftBottom);
-    var rt = this._map.latLngToContainerPoint(this._rightTop);
-    // rt.y -= this.options.maxHeight;
-
-    console.log(lb, rt);
-
-    if (this._container) {
-      document.querySelector('svg.isometric-layer').remove();
+    if (!this._container) {
+      this._container = d3.select(this._map.getPanes().overlayPane).append('svg');
     }
 
-    var width = (rt.x - lb.x) + this.options.size * 2;
-    var height = (lb.y - rt.y) + this.options.maxHeight + this.options.size * 2;
+    var lb = this._map.latLngToContainerPoint(this._leftBottom);
+    var rt = this._map.latLngToContainerPoint(this._rightTop);
 
-    var left = lb.x - this.options.size;
-    var top = rt.y - this.options.maxHeight;
+    var lt = L.point([lb.x, rt.y]);
 
-    this._container = d3.select(this._map.getPanes().overlayPane)
-      .append('svg')
+    console.log(lb, rt, lt);
+
+    // var width = (rt.x - lb.x) + this.options.size * 2;
+    // var height = (lb.y - rt.y) + this.options.maxHeight + this.options.size * 2;
+
+    var mapSize = this._map.getSize();
+    var width = mapSize.x;
+    var height = mapSize.y;
+
+    if(!this._prevLeftBottom) {
+      this._prevLeftBottom = lb.clone()
+    }
+    var layerOffset = lb.subtract(this._prevLeftBottom);
+    this._prevLeftBottom = lb.clone()
+
+    console.log(lb, this._prevLeftBottom, layerOffset)
+
+    var left = (lt.x - this.options.size - this.options.size);
+    var top = (lt.y - this.options.maxHeight - this.options.size);
+
+
+    this._container
       .attr({
         'class': 'leaflet-layer leaflet-zoom-hide isometric-layer',
         'width': width,
@@ -96,9 +109,8 @@ L.IsometricLayer = L.Class.extend({
         'viewBox': left +' '+ top + ' ' + width + ' ' + height
       })
       .style({
-        'top': top + "px",
-        'left': left + "px",
-        // 'bottom': 2+"px"
+        'top': -layerOffset.x + "px",
+        'left': -layerOffset.y + "px",
         // 'top': -height/2+"px",
         // 'bottom': -height/2+"px"
       });
@@ -110,6 +122,8 @@ L.IsometricLayer = L.Class.extend({
       return {
         origX: pointLayer.x,
         origY: pointLayer.y,
+        x: pointLayer.x,
+        y: pointLayer.y,
         dx: this.options.size,
         dy: this.options.size,
         dz: this._valueScale(d.value)
@@ -135,7 +149,6 @@ L.IsometricLayer = L.Class.extend({
       -Math.sqrt(3) / 2 * p3d[0] + Math.sqrt(3) / 2 * p3d[1],
       +0.5 * p3d[0] + 0.5 * p3d[1] - p3d[2]
     ];
-
     return r;
   },
 
@@ -199,15 +212,15 @@ L.IsometricLayer = L.Class.extend({
 
     var self = this;
 
-    // enter_pipedons.append('circle').attr({
-    //   cx: function(d){
-    //     return d.x;
-    //   },
-    //   cy: function(d) {
-    //     return d.y;
-    //   },
-    //   r: 50
-    // });
+    enter_pipedons.append('circle').attr({
+      cx: function(d){
+        return d.x;
+      },
+      cy: function(d) {
+        return d.y;
+      },
+      r: 25
+    });
 
     enter_pipedons.append('path').attr({
       "class": 'iso face bottom',
