@@ -18,6 +18,7 @@ L.IsometricLayer = L.Class.extend({
 		this._map = map;
 
     this._computeDataBounds();
+
     // Create a container for svg.
     this._initContainer();
     this._offset = L.point([0,0]);
@@ -52,53 +53,47 @@ L.IsometricLayer = L.Class.extend({
 	},
 
   _computeDataBounds: function() {
-    this._leftBottom = L.latLng(
-      d3.min(data, function(d) { return d.lat; }),
-      d3.min(data, function(d) { return d.lon; })
-    );
-    this._rightTop = L.latLng(
-      d3.max(data, function(d) { return d.lat; }),
-      d3.max(data, function(d) { return d.lon; })
-    );
 
+    // Compute value scale
     var dataRange = [
       d3.min(data, function(d) { return d.value; }),
       d3.max(data, function(d) { return d.value; }),
     ];
-
     this._valueScale = d3.scale.linear().domain([0, dataRange[1]]).range([0, this.options.maxHeight]);
   },
+
+  _getPos: function () {
+		var left, top, matches,
+		    el = this._map._mapPane,
+		    style = window.getComputedStyle(el),
+        transformRe = /([-+]?(?:\d*\.)?\d+)\D*, ([-+]?(?:\d*\.)?\d+)\D*\)/;
+
+		if (L.Browser.any3d) {
+			matches = style[L.DomUtil.TRANSFORM].match(transformRe);
+			if (!matches) { return; }
+			left = parseFloat(matches[1]);
+			top  = parseFloat(matches[2]);
+		} else {
+			left = parseFloat(style.left);
+			top  = parseFloat(style.top);
+		}
+
+		return new L.Point(left, top, true);
+	},
 
   _initContainer: function() {
 
     if (!this._container) {
-      this._container = d3.select(this._map.getPanes().overlayPane).append('svg');
+      this._container = d3.select(this._map.getPanes().overlayPane).append("svg");
     }
-
-    var lb = this._map.latLngToContainerPoint(this._leftBottom);
-    var rt = this._map.latLngToContainerPoint(this._rightTop);
-
-    var lt = L.point([lb.x, rt.y]);
-
-    console.log(lb, rt, lt);
-
-    // var width = (rt.x - lb.x) + this.options.size * 2;
-    // var height = (lb.y - rt.y) + this.options.maxHeight + this.options.size * 2;
 
     var mapSize = this._map.getSize();
     var width = mapSize.x;
     var height = mapSize.y;
 
-    if(!this._prevLeftBottom) {
-      this._prevLeftBottom = lb.clone()
-    }
-    var layerOffset = lb.subtract(this._prevLeftBottom);
-    this._prevLeftBottom = lb.clone()
-
-    console.log(lb, this._prevLeftBottom, layerOffset)
-
-    var left = (lt.x - this.options.size - this.options.size);
-    var top = (lt.y - this.options.maxHeight - this.options.size);
+    var pos = this._getPos();
+    var left = pos.x;
+    var top = pos.y;
 
 
     this._container
@@ -106,19 +101,27 @@ L.IsometricLayer = L.Class.extend({
         'class': 'leaflet-layer leaflet-zoom-hide isometric-layer',
         'width': width,
         'height': height,
-        'viewBox': left +' '+ top + ' ' + width + ' ' + height
+        // 'viewBox': left +' '+ top + ' ' + width + ' ' + height,
       })
       .style({
-        'top': -layerOffset.x + "px",
-        'left': -layerOffset.y + "px",
-        // 'top': -height/2+"px",
-        // 'bottom': -height/2+"px"
+        transform: "translate(" + -left + "px," + -top + "px)"
       });
 
 
 
+  },
+
+  _destroyContainer: function(){
+    if(null != this._container){
+      this._container.remove();
+    }
+  },
+
+  _redraw: function() {
+
     this._data = data.map(function(d) {
       var pointLayer = this._map.latLngToLayerPoint([d.lat, d.lon]);
+      console.log("-> ", pointLayer)
       return {
         origX: pointLayer.x,
         origY: pointLayer.y,
@@ -131,15 +134,9 @@ L.IsometricLayer = L.Class.extend({
     }, this);
 
     this._computeIsometricPoints(this._data);
-  },
 
-  _destroyContainer: function(){
-    if(null != this._container){
-      this._container.remove();
-    }
-  },
 
-  _redraw: function() {
+
 
     this._DRAW();
   },
